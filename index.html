@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Virus Scanner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .container {
+            background: #f5f5f5;
+            padding: 30px;
+            border-radius: 10px;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            border-radius: 10px;
+            background: white;
+        }
+
+        .upload-area:hover {
+            border-color: #007bff;
+        }
+
+        input[type="file"] {
+            margin: 20px 0;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .result {
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .clean {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .infected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .loading {
+            color: #007bff;
+        }
+
+        .progress-container {
+            margin: 20px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin: 10px 0;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .file-info {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .speed-info {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>⚡ Real-Time Virus Scanner</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div class="upload-area">
+                <p>🔍 Upload & scan files in real-time - no storage!</p>
+                <input type="file" id="fileInput" name="file" required>
+                <br>
+                <button type="submit" id="scanBtn">⚡ Scan Now</button>
+            </div>
+        </form>
+
+        <div id="progressContainer" class="progress-container">
+            <div id="fileInfo" class="file-info"></div>
+            <div class="progress-text" id="progressText">Preparing upload...</div>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div id="speedInfo" class="speed-info"></div>
+        </div>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        let startTime;
+        let fileSize;
+
+        document.getElementById('uploadForm').onsubmit = async function (e) {
+            e.preventDefault();
+
+            const fileInput = document.getElementById('fileInput');
+            const scanBtn = document.getElementById('scanBtn');
+            const result = document.getElementById('result');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const fileInfo = document.getElementById('fileInfo');
+            const speedInfo = document.getElementById('speedInfo');
+
+            if (!fileInput.files[0]) {
+                alert('Please select a file');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            fileSize = file.size;
+            startTime = Date.now();
+
+            // Show file information
+            fileInfo.innerHTML = `
+                <strong>File:</strong> ${file.name}<br>
+                <strong>Size:</strong> ${formatFileSize(file.size)}<br>
+                <strong>Type:</strong> ${file.type || 'Unknown'}
+            `;
+
+            // Show progress container and hide result
+            progressContainer.style.display = 'block';
+            result.style.display = 'none';
+            scanBtn.disabled = true;
+            scanBtn.textContent = '⚡ Scanning...';
+
+            // Reset progress
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Streaming to scanner...';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                // Use XMLHttpRequest for progress tracking
+                const xhr = new XMLHttpRequest();
+
+                // Track upload progress
+                xhr.upload.addEventListener('progress', function (e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        progressFill.style.width = percentComplete + '%';
+                        progressText.textContent = `Uploading: ${Math.round(percentComplete)}%`;
+
+                        // Calculate speed
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const speed = e.loaded / elapsed;
+                        const remaining = (e.total - e.loaded) / speed;
+
+                        speedInfo.innerHTML = `
+                            Speed: ${formatFileSize(speed)}/s | 
+                            Remaining: ${formatTime(remaining)}
+                        `;
+                    }
+                });
+
+                // Handle upload completion and start scanning
+                xhr.upload.addEventListener('load', function () {
+                    progressText.textContent = 'Upload complete! Scanning for viruses...';
+                    scanBtn.textContent = '🔍 Scanning...';
+                    speedInfo.textContent = 'Running virus scan...';
+
+                    // Animate progress bar during scanning
+                    animateScanProgress();
+                });
+
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === 4) {
+                        progressContainer.style.display = 'none';
+                        scanBtn.disabled = false;
+                        scanBtn.textContent = '⚡ Scan Now';
+
+                        if (xhr.status === 200) {
+                            const data = JSON.parse(xhr.responseText);
+                            displayResult(data);
+                        } else {
+                            displayError('Scan failed: ' + xhr.responseText);
+                        }
+                    }
+                };
+
+                xhr.open('POST', '/scan');
+                xhr.send(formData);
+
+            } catch (error) {
+                progressContainer.style.display = 'none';
+                scanBtn.disabled = false;
+                scanBtn.textContent = '⚡ Scan Now';
+                displayError('Network error: ' + error.message);
+            }
+        };
+
+        function animateScanProgress() {
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+
+            // Reset to 0 and animate to show scanning activity
+            progressFill.style.width = '0%';
+
+            let progress = 0;
+            const scanAnimation = setInterval(() => {
+                progress += Math.random() * 10;
+                if (progress > 90) progress = 90; // Don't complete until actual response
+
+                progressFill.style.width = progress + '%';
+                progressText.textContent = `Scanning: ${Math.round(progress)}%`;
+            }, 200);
+
+            // Store interval ID to clear it when scan completes
+            window.scanAnimation = scanAnimation;
+        }
+
+        function formatFileSize(bytes) {
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            if (bytes === 0) return '0 Bytes';
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function formatTime(seconds) {
+            if (seconds < 60) return Math.round(seconds) + 's';
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.round(seconds % 60);
+            return minutes + 'm ' + remainingSeconds + 's';
+        }
+
+        function displayResult(data) {
+            // Clear scan animation if running
+            if (window.scanAnimation) {
+                clearInterval(window.scanAnimation);
+            }
+
+            const result = document.getElementById('result');
+            result.style.display = 'block';
+
+            if (data.status === 'clean') {
+                result.className = 'result clean';
+                result.innerHTML = `
+                    <h3>✅ File is Clean</h3>
+                    <p><strong>Filename:</strong> ${data.filename}</p>
+                    <p><strong>Status:</strong> No threats detected</p>
+                    <p><strong>Scan Time:</strong> ${new Date(data.scan_time).toLocaleString()}</p>
+                    <p><strong>Engine:</strong> ${data.engine}</p>
+                `;
+            } else {
+                result.className = 'result infected';
+                result.innerHTML = `
+                    <h3>⚠️ Threat Detected</h3>
+                    <p><strong>Filename:</strong> ${data.filename}</p>
+                    <p><strong>Status:</strong> INFECTED</p>
+                    <p><strong>Threat:</strong> ${data.threat}</p>
+                    <p><strong>Scan Time:</strong> ${new Date(data.scan_time).toLocaleString()}</p>
+                    <p><strong>Engine:</strong> ${data.engine}</p>
+                `;
+            }
+        }
+
+        function displayError(message) {
+            // Clear scan animation if running
+            if (window.scanAnimation) {
+                clearInterval(window.scanAnimation);
+            }
+
+            const result = document.getElementById('result');
+            result.style.display = 'block';
+            result.className = 'result error';
+            result.innerHTML = '<h3>❌ Error</h3><p>' + message + '</p>';
+        }
+    </script>
+</body>
+
+</html>
