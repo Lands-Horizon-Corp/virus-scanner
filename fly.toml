@@ -1,0 +1,27 @@
+# fly.toml app configuration file generated for virus-scanner on 2025-12-01T14:08:23+08:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'virus-scanner'
+primary_region = 'sin'
+
+[build]
+  [build.args]
+    GO_VERSION = '1.24.4'
+
+[env]
+  PORT = '8081'
+
+[http_service]
+  internal_port = 8081
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
