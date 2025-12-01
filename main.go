@@ -19,7 +19,7 @@ import (
 
 var (
 	htmlContent        []byte
-	maxConcurrentScans = runtime.NumCPU() * 2 // Double CPU count for better throughput
+	maxConcurrentScans = runtime.NumCPU() // Single CPU count for memory efficiency
 	scanSemaphore      = make(chan struct{}, maxConcurrentScans)
 
 	// Allowed CORS origins
@@ -50,7 +50,7 @@ var (
 	// Object pools for memory efficiency
 	bufferPool = sync.Pool{
 		New: func() any {
-			buf := make([]byte, 64*1024) // 64KB buffers
+			buf := make([]byte, 16*1024) // 16KB buffers for memory efficiency
 			return &buf
 		},
 	}
@@ -194,14 +194,17 @@ func scanWithClamscanOptimized(ctx context.Context, r io.Reader) (status string,
 		return "", "", fmt.Errorf("failed to read input stream: %w", err)
 	}
 
-	// Create clamscan command
+	// Create memory-efficient clamscan command - use system databases for reliability
 	cmd := exec.CommandContext(ctx, "clamscan",
-		"--no-summary",        // No summary
-		"--infected",          // Only show infected files
-		"--stdout",            // Output to stdout
-		"--max-filesize=500M", // Large file support
-		"--max-scansize=500M", // Max scan size
-		"-")                   // Read from stdin
+		"--no-summary",          // No summary
+		"--infected",            // Only show infected files
+		"--stdout",              // Output to stdout
+		"--max-filesize=100M",   // Reduced from 500M to save memory
+		"--max-scansize=100M",   // Reduced max scan size
+		"--max-files=1",         // Single file only
+		"--max-recursion=0",     // No recursion
+		"--max-dir-recursion=0", // No directory recursion
+		"-")                     // Read from stdin - will use system databases
 
 	// Set the input data
 	cmd.Stdin = bytes.NewReader(data.Bytes())
@@ -259,33 +262,33 @@ func main() {
 		panic("Unable to load index.html: " + err.Error())
 	}
 
-	fmt.Println("Starting ULTRA-OPTIMIZED virus scanner server on :8081")
+	fmt.Println("Starting MEMORY-OPTIMIZED virus scanner server on :8081")
 	fmt.Println("Web UI: http://localhost:8081")
 	fmt.Println("API: POST http://localhost:8081/scan")
-	fmt.Println("⚡ High-performance streaming scanner with CORS support!")
-	fmt.Printf("🚀 Max concurrent scans: %d (2x CPU cores)\n", maxConcurrentScans)
-	fmt.Printf("💾 Buffer pool size: 64KB per connection\n")
+	fmt.Println("💾 Memory-efficient streaming scanner with CORS support!")
+	fmt.Printf("🚀 Max concurrent scans: %d (1x CPU cores)\n", maxConcurrentScans)
+	fmt.Printf("💾 Buffer pool size: 16KB per connection\n")
 	fmt.Printf("🌐 CORS enabled for %d domains\n", len(allowedOrigins))
 
-	// Ultra-high performance server settings
+	// Memory-optimized server settings
 	server := &fasthttp.Server{
 		Handler:                       requestHandler,
-		MaxRequestBodySize:            500 * 1024 * 1024,      // 500MB
-		ReadBufferSize:                256 * 1024,             // 256KB for large files
-		WriteBufferSize:               256 * 1024,             // 256KB write buffer
-		MaxConnsPerIP:                 50,                     // Higher connection limit
-		MaxRequestsPerConn:            10000,                  // More connection reuse
-		ReadTimeout:                   15 * time.Minute,       // Extended for large files
-		WriteTimeout:                  15 * time.Minute,       // Extended write timeout
-		IdleTimeout:                   10 * time.Minute,       // Longer idle timeout
-		ReduceMemoryUsage:             false,                  // Prioritize speed
-		StreamRequestBody:             true,                   // Essential for streaming
-		DisableKeepalive:              false,                  // Keep connections alive
-		TCPKeepalive:                  true,                   // TCP keepalive
-		Concurrency:                   runtime.NumCPU() * 512, // Massive concurrency
-		DisableHeaderNamesNormalizing: true,                   // Skip header normalization
-		NoDefaultServerHeader:         true,                   // Skip default headers
-		NoDefaultDate:                 true,                   // Skip date header
+		MaxRequestBodySize:            100 * 1024 * 1024,     // 100MB to match ClamAV limits
+		ReadBufferSize:                64 * 1024,             // 64KB reduced from 256KB
+		WriteBufferSize:               64 * 1024,             // 64KB write buffer
+		MaxConnsPerIP:                 10,                    // Reduced connection limit
+		MaxRequestsPerConn:            1000,                  // Reduced connection reuse
+		ReadTimeout:                   15 * time.Minute,      // Extended for large files
+		WriteTimeout:                  15 * time.Minute,      // Extended write timeout
+		IdleTimeout:                   5 * time.Minute,       // Shorter idle timeout
+		ReduceMemoryUsage:             true,                  // Prioritize memory over speed
+		StreamRequestBody:             true,                  // Essential for streaming
+		DisableKeepalive:              false,                 // Keep connections alive
+		TCPKeepalive:                  true,                  // TCP keepalive
+		Concurrency:                   runtime.NumCPU() * 32, // Reduced concurrency for memory
+		DisableHeaderNamesNormalizing: true,                  // Skip header normalization
+		NoDefaultServerHeader:         true,                  // Skip default headers
+		NoDefaultDate:                 true,                  // Skip date header
 	}
 
 	if err := server.ListenAndServe(":8081"); err != nil {
